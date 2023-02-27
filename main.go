@@ -7,8 +7,6 @@ import (
 	"os"
 )
 
-var debug bool
-
 type Node struct {
 	label    string
 	parents  []*Node
@@ -33,17 +31,12 @@ func createNode(label string, parent *Node) *Node {
 }
 
 func prefer(parent, child *Node) {
-	if debug {
-		fmt.Printf("prefer %s over %s\n", parent, child)
-	}
 	parent.children = append(parent.children, child)
 
 	// walkthrough entire node list, and find nodes that include both parent and child as children and remove child
 	for _, n := range nodeList {
 		preferSibling(n, parent, child)
 	}
-
-	printNodes()
 }
 
 func preferSibling(node, keep, drop *Node) {
@@ -70,14 +63,18 @@ func preferSibling(node, keep, drop *Node) {
 	}
 }
 
-func printNodes() {
-	if !debug {
-		return
-	}
+func printNodes(root *Node) {
+	fmt.Println("---")
 	for _, n := range nodeList {
-		fmt.Printf("%s: ", n)
-		for _, c := range n.children {
-			fmt.Printf("%s ", c)
+		// if n == root {
+		// 	continue
+		// }
+		fmt.Printf("%s", n)
+		if len(n.children) > 0 {
+			fmt.Print(" > ")
+			for _, c := range n.children {
+				fmt.Printf("%s ", c)
+			}
 		}
 		fmt.Println()
 	}
@@ -90,8 +87,7 @@ type Matchup struct {
 }
 
 func findMatchups() []Matchup {
-	// go through each node
-	// if there are multiple children, take the first 2
+	// go through each node, if there are multiple children, take the last 2
 	matchups := []Matchup{}
 	for _, n := range nodeList {
 		cs := n.children
@@ -99,13 +95,10 @@ func findMatchups() []Matchup {
 			matchups = append(matchups, Matchup{cs[len(cs)-1], cs[len(cs)-2]})
 		}
 	}
-	if debug {
-		fmt.Printf("matchups: %v\n", matchups)
-	}
 	return matchups
 }
 
-func faceoff(matchup Matchup) (winner, loser *Node) {
+func faceoff(root *Node, matchup Matchup) (winner, loser *Node) {
 	fmt.Printf("a: %s\nb: %s\n", matchup.A, matchup.B)
 
 	var input string
@@ -113,15 +106,16 @@ func faceoff(matchup Matchup) (winner, loser *Node) {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if input == "a" || input == "A" {
-		winner = matchup.A
-		loser = matchup.B
-	} else {
-		winner = matchup.B
-		loser = matchup.A
+
+	switch input {
+	case "a", "A":
+		return matchup.A, matchup.B
+	case "b", "B":
+		return matchup.B, matchup.A
+	case "?":
+		printNodes(root)
 	}
-	//fmt.Printf("%s > %s\n\n", winner, loser)
-	return
+	return faceoff(root, matchup)
 }
 
 func readOptions(root *Node) {
@@ -129,10 +123,7 @@ func readOptions(root *Node) {
 
 	scanner := bufio.NewScanner(os.Stdin)
 
-	//count := 0
 	for {
-		// count += 1
-		// fmt.Printf("Option %d: ", count)
 		scanner.Scan()
 		err := scanner.Err()
 		if err != nil {
@@ -142,12 +133,11 @@ func readOptions(root *Node) {
 		if input == "" {
 			break
 		}
-		//fmt.Printf("added: %s-\n", input)
 		createNode(input, root)
 	}
 }
 
-func runTournament() {
+func runTournament(root *Node) {
 	fmt.Println("Enter a or b to indicate your preference for the following items:")
 	var matchups []Matchup
 	for {
@@ -155,7 +145,7 @@ func runTournament() {
 		if len(matchups) == 0 {
 			break
 		}
-		winner, loser := faceoff(matchups[0])
+		winner, loser := faceoff(root, matchups[0])
 		prefer(winner, loser)
 	}
 }
@@ -178,6 +168,6 @@ func main() {
 	root := createNode("0", nil)
 
 	readOptions(root)
-	runTournament()
+	runTournament(root)
 	showResults(root)
 }
