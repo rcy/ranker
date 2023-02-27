@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"log"
+	"math"
 	"os"
 	"sort"
 )
@@ -102,13 +103,25 @@ type Matchup struct {
 }
 
 func findMatchups() []Matchup {
-	// go through each node, if there are multiple children, take the last 2
 	matchups := []Matchup{}
 	for _, n := range nodeList {
 		if len(n.children) >= 2 {
+			// within this sibling group take the first 2, as they are sorted by stamp, this will be the oldest pair
 			matchups = append(matchups, Matchup{n.children[0], n.children[1]})
 		}
 	}
+	// sort the matchups, by oldest recent, then oldest secondary
+	sort.Slice(matchups, func(i, j int) bool {
+		imax := math.Max(float64(matchups[i].A.stamp), float64(matchups[i].B.stamp))
+		jmax := math.Max(float64(matchups[j].A.stamp), float64(matchups[j].B.stamp))
+		if imax == jmax {
+			imin := math.Min(float64(matchups[i].A.stamp), float64(matchups[i].B.stamp))
+			jmin := math.Min(float64(matchups[j].A.stamp), float64(matchups[j].B.stamp))
+			return imin < jmin
+		} else {
+			return imax < jmax
+		}
+	})
 	return matchups
 }
 
