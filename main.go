@@ -79,21 +79,21 @@ func preferSibling(node, keep, drop *Node) {
 }
 
 func printNodes(root *Node) {
-	fmt.Println("---")
+	fmt.Println("digraph {")
 	for _, n := range nodeList {
-		// if n == root {
-		// 	continue
-		// }
-		fmt.Printf("%20s\t", n)
 		if len(n.children) > 0 {
-			fmt.Print(" > ")
 			for _, c := range n.children {
-				fmt.Printf("%s ", c)
+				if n == root {
+					fmt.Printf("  \"%s\"", c)
+				} else {
+					fmt.Printf("  \"%s\" -> \"%s\"", n, c)
+				}
+				fmt.Println()
 			}
+			fmt.Println()
 		}
-		fmt.Println()
 	}
-	fmt.Println("---")
+	fmt.Println("}")
 }
 
 type Matchup struct {
