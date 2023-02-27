@@ -5,16 +5,19 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 )
 
 type Node struct {
 	label    string
-	parents  []*Node
+	stamp    int
 	children []*Node
 }
 
+var stampSeq int
+
 func (n Node) String() string {
-	return fmt.Sprintf("%s", n.label)
+	return fmt.Sprintf("%s:%d", n.label, n.stamp)
 }
 
 var nodeList []*Node
@@ -31,7 +34,16 @@ func createNode(label string, parent *Node) *Node {
 }
 
 func prefer(parent, child *Node) {
+	stampSeq += 1
+	parent.stamp = stampSeq
+	child.stamp = stampSeq
+
 	parent.children = append(parent.children, child)
+
+	// order by time stamp, so we present less recent options first
+	sort.Slice(parent.children, func(i, j int) bool {
+		return parent.children[i].stamp < parent.children[j].stamp
+	})
 
 	// walkthrough entire node list, and find nodes that include both parent and child as children and remove child
 	for _, n := range nodeList {
@@ -53,12 +65,15 @@ func preferSibling(node, keep, drop *Node) {
 		}
 	}
 	if hasKeep && hasDrop {
-		children := []*Node{keep}
+		children := []*Node{}
 		for _, n := range node.children {
-			if n != drop && n != keep {
+			if n != drop {
 				children = append(children, n)
 			}
 		}
+		sort.Slice(children, func(i, j int) bool {
+			return children[i].stamp < children[j].stamp
+		})
 		node.children = children
 	}
 }
@@ -69,7 +84,7 @@ func printNodes(root *Node) {
 		// if n == root {
 		// 	continue
 		// }
-		fmt.Printf("%s", n)
+		fmt.Printf("%20s\t", n)
 		if len(n.children) > 0 {
 			fmt.Print(" > ")
 			for _, c := range n.children {
@@ -90,15 +105,14 @@ func findMatchups() []Matchup {
 	// go through each node, if there are multiple children, take the last 2
 	matchups := []Matchup{}
 	for _, n := range nodeList {
-		cs := n.children
-		if len(cs) >= 2 {
-			matchups = append(matchups, Matchup{cs[len(cs)-1], cs[len(cs)-2]})
+		if len(n.children) >= 2 {
+			matchups = append(matchups, Matchup{n.children[0], n.children[1]})
 		}
 	}
 	return matchups
 }
 
-func faceoff(root *Node, matchup Matchup) (winner, loser *Node) {
+func faceoff(root *Node, matchup *Matchup) (winner, loser *Node) {
 	fmt.Printf("a: %s\nb: %s\n", matchup.A, matchup.B)
 
 	var input string
@@ -137,15 +151,25 @@ func readOptions(root *Node) {
 	}
 }
 
+func nextMatchup() *Matchup {
+	matchups := findMatchups()
+	fmt.Printf("MATCHUPS: %v\n", matchups)
+	if len(matchups) == 0 {
+		return nil
+	}
+	return &matchups[0]
+}
+
 func runTournament(root *Node) {
 	fmt.Println("Enter a or b to indicate your preference for the following items:")
-	var matchups []Matchup
+	var matchup *Matchup
 	for {
-		matchups = findMatchups()
-		if len(matchups) == 0 {
+		matchup = nextMatchup()
+		if matchup == nil {
 			break
 		}
-		winner, loser := faceoff(root, matchups[0])
+		winner, loser := faceoff(root, matchup)
+		fmt.Printf("%s > %s\n\n", winner, loser)
 		prefer(winner, loser)
 	}
 }
