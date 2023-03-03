@@ -166,7 +166,7 @@ func readOptions(root *Node) {
 
 func nextMatchup() *Matchup {
 	matchups := findMatchups()
-	fmt.Printf("MATCHUPS: %v\n", matchups)
+	//fmt.Printf("MATCHUPS: %v\n", matchups)
 	if len(matchups) == 0 {
 		return nil
 	}
