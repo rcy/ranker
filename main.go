@@ -18,7 +18,7 @@ type Node struct {
 var stampSeq int
 
 func (n Node) String() string {
-	return fmt.Sprintf("%s:%d", n.label, n.stamp)
+	return fmt.Sprintf("%s", n.label)
 }
 
 var nodeList []*Node
