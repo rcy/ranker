@@ -1,12 +1,14 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"log"
 	"math"
 	"os"
 	"sort"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 type Node struct {
@@ -21,20 +23,16 @@ func (n Node) String() string {
 	return fmt.Sprintf("%s", n.label)
 }
 
-var nodeList []*Node
-
-func createNode(label string, parent *Node) *Node {
+func (m *model) createNode(label string) *Node {
 	node := Node{label: label}
-	nodeList = append(nodeList, &node)
+	m.nodeList = append(m.nodeList, &node)
 
-	if parent != nil {
-		prefer(parent, &node)
-	}
+	m.prefer(m.rootNode, &node)
 
 	return &node
 }
 
-func prefer(parent, child *Node) {
+func (m *model) prefer(parent, child *Node) {
 	stampSeq += 1
 	parent.stamp = stampSeq
 	child.stamp = stampSeq
@@ -47,12 +45,12 @@ func prefer(parent, child *Node) {
 	})
 
 	// walkthrough entire node list, and find nodes that include both parent and child as children and remove child
-	for _, n := range nodeList {
-		preferSibling(n, parent, child)
+	for _, n := range m.nodeList {
+		m.preferSibling(n, parent, child)
 	}
 }
 
-func preferSibling(node, keep, drop *Node) {
+func (m *model) preferSibling(node, keep, drop *Node) {
 	var hasKeep bool
 	var hasDrop bool
 
@@ -79,9 +77,9 @@ func preferSibling(node, keep, drop *Node) {
 	}
 }
 
-func printNodes(root *Node) {
+func (m *model) printNodes(root *Node) {
 	fmt.Println("digraph {")
-	for _, n := range nodeList {
+	for _, n := range m.nodeList {
 		if len(n.children) > 0 {
 			for _, c := range n.children {
 				if n == root {
@@ -102,9 +100,9 @@ type Matchup struct {
 	B *Node
 }
 
-func findMatchups() []Matchup {
+func (m *model) findMatchups() []Matchup {
 	matchups := []Matchup{}
-	for _, n := range nodeList {
+	for _, n := range m.nodeList {
 		if len(n.children) >= 2 {
 			// within this sibling group take the first 2, as they are sorted by stamp, this will be the oldest pair
 			matchups = append(matchups, Matchup{n.children[0], n.children[1]})
@@ -125,7 +123,7 @@ func findMatchups() []Matchup {
 	return matchups
 }
 
-func faceoff(root *Node, matchup *Matchup) (winner, loser *Node) {
+func (m *model) faceoff(root *Node, matchup *Matchup) (winner, loser *Node) {
 	fmt.Printf("a: %s\nb: %s\n", matchup.A, matchup.B)
 
 	var input string
@@ -140,71 +138,209 @@ func faceoff(root *Node, matchup *Matchup) (winner, loser *Node) {
 	case "b", "B":
 		return matchup.B, matchup.A
 	case "?":
-		printNodes(root)
+		m.printNodes(root)
 	}
-	return faceoff(root, matchup)
+	return m.faceoff(root, matchup)
 }
 
-func readOptions(root *Node) {
-	fmt.Println("Enter one option per line. Enter a blank line when done.")
-
-	scanner := bufio.NewScanner(os.Stdin)
-
-	for {
-		scanner.Scan()
-		err := scanner.Err()
-		if err != nil {
-			log.Fatal(err)
-		}
-		input := scanner.Text()
-		if input == "" {
-			break
-		}
-		createNode(input, root)
-	}
-}
-
-func nextMatchup() *Matchup {
-	matchups := findMatchups()
-	//fmt.Printf("MATCHUPS: %v\n", matchups)
+func (m *model) setMatchup() {
+	matchups := m.findMatchups()
 	if len(matchups) == 0 {
-		return nil
-	}
-	return &matchups[0]
-}
-
-func runTournament(root *Node) {
-	fmt.Println("Enter a or b to indicate your preference for the following items:")
-	var matchup *Matchup
-	for {
-		matchup = nextMatchup()
-		if matchup == nil {
-			break
-		}
-		winner, loser := faceoff(root, matchup)
-		fmt.Printf("%s > %s\n\n", winner, loser)
-		prefer(winner, loser)
+		m.matchup = nil
+		m.selected = nil
+	} else {
+		m.matchup = &matchups[0]
+		m.selected = m.matchup.A
 	}
 }
 
-func showResults(root *Node) {
-	fmt.Println("Here are the results:")
-	node := root
-	order := 1
+func (m model) orderedNodes() (result []*Node) {
+	node := m.rootNode
 	for {
 		if len(node.children) == 0 {
 			break
 		}
-		fmt.Printf("%d\t%s\n", order, node.children[0])
-		order += 1
+		result = append(result, node.children[0])
 		node = node.children[0]
+	}
+	return
+}
+
+type model struct {
+	state     string
+	rootNode  *Node
+	nodeList  []*Node
+	textInput textinput.Model
+	matchup   *Matchup
+	selected  *Node
+}
+
+func initialModel() model {
+	ti := textinput.New()
+	ti.Placeholder = "New item..."
+	ti.Focus()
+
+	rootNode := Node{label: "0"}
+
+	return model{
+		state:     "collect",
+		textInput: ti,
+		rootNode:  &rootNode,
+		nodeList:  []*Node{&rootNode},
 	}
 }
 
-func main() {
-	root := createNode("0", nil)
+func (m model) Init() tea.Cmd {
+	return textinput.Blink
+}
 
-	readOptions(root)
-	runTournament(root)
-	showResults(root)
+func (m model) View() string {
+	switch m.state {
+	case "collect":
+		switch len(m.nodeList) {
+		case 1:
+			m.textInput.Placeholder = "First item"
+		case 2:
+			m.textInput.Placeholder = "Second item"
+		default:
+			m.textInput.Placeholder = "Another item... hit enter when done"
+		}
+		return fmt.Sprintf(
+			"Let's rank some stuff\n%s%s",
+			m.viewNodes(),
+			m.textInput.View(),
+		) + "\n"
+	case "rank":
+		s := "Which do you prefer?\n\n"
+		if m.selected == m.matchup.A {
+			s += "> "
+		} else {
+			s += "  "
+		}
+		s += m.matchup.A.label
+		s += "\n"
+		if m.selected == m.matchup.B {
+			s += "> "
+		} else {
+			s += "  "
+		}
+		s += m.matchup.B.label
+		return s
+	case "results":
+		s := "Here are the results:\n\n"
+		for i, node := range m.orderedNodes() {
+			s += fmt.Sprintf("%d\t%s\n", i+1, node)
+		}
+
+		s += "\nPress r to retry with the same items\n"
+		s += "Press s to start over with new items\n"
+		s += "Press q to quit\n"
+
+		return s
+	}
+
+	return fmt.Sprintf("unknown state: %s\n", m.state)
+}
+
+func (m model) viewNodes() string {
+	s := ""
+	for i, node := range m.nodeList {
+		if node != m.rootNode {
+			s += fmt.Sprintf("%d: %s\n", i, node)
+		}
+	}
+	return s
+}
+
+func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		}
+	}
+
+	switch m.state {
+	case "collect":
+		return m.UpdateCollect(msg)
+	case "rank":
+		return m.UpdateRank(msg)
+	case "results":
+		return m.UpdateResults(msg)
+	}
+	return m, nil
+}
+
+func (m model) UpdateRank(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyUp:
+			m.selected = m.matchup.A
+		case tea.KeyDown:
+			m.selected = m.matchup.B
+		case tea.KeyEnter:
+			if m.selected == m.matchup.A {
+				m.prefer(m.selected, m.matchup.B)
+			} else {
+				m.prefer(m.selected, m.matchup.A)
+			}
+			m.setMatchup()
+			if m.matchup == nil {
+				m.state = "results"
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m model) UpdateCollect(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEnter:
+			label := m.textInput.Value()
+			if label == "" {
+				m.state = "rank"
+				m.setMatchup()
+			} else {
+				m.createNode(label)
+				m.textInput.Reset()
+			}
+			return m, nil
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		}
+	}
+
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
+}
+
+func (m model) UpdateResults(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyRunes:
+			switch string(msg.Runes) {
+			case "s":
+				return initialModel(), nil
+			case "q":
+				return m, tea.Quit
+			}
+		}
+	}
+
+	return m, nil
+}
+
+func main() {
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	if _, err := p.Run(); err != nil {
+		fmt.Printf("Alas, there's been an error: %v", err)
+		os.Exit(1)
+	}
 }
