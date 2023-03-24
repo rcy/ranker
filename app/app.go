@@ -16,6 +16,11 @@ type Node struct {
 	children []*Node
 }
 
+func (n *Node) reset() {
+	n.stamp = 0
+	n.children = []*Node{}
+}
+
 func (n Node) String() string {
 	return fmt.Sprintf("%s", n.label)
 }
@@ -318,6 +323,17 @@ func (m model) UpdateCollect(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m *model) softReset() {
+	for _, node := range m.nodeList {
+		node.reset()
+		if node != m.rootNode {
+			m.prefer(m.rootNode, node)
+		}
+	}
+	m.state = "rank"
+	m.setMatchup()
+}
+
 func (m model) UpdateResults(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -326,6 +342,9 @@ func (m model) UpdateResults(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch string(msg.Runes) {
 			case "s":
 				return InitialModel(), nil
+			case "r":
+				m.softReset()
+				return m, nil
 			case "q":
 				return m, tea.Quit
 			}
