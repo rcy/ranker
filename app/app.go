@@ -168,8 +168,16 @@ func (m model) orderedNodes() (result []*Node) {
 	return
 }
 
+type state int
+
+const (
+	collect state = iota
+	rank
+	results
+)
+
 type model struct {
-	state     string
+	state     state
 	rootNode  *Node
 	nodeList  []*Node
 	textInput textinput.Model
@@ -186,7 +194,7 @@ func InitialModel() model {
 	rootNode := Node{label: "0"}
 
 	return model{
-		state:     "collect",
+		state:     collect,
 		textInput: ti,
 		rootNode:  &rootNode,
 		nodeList:  []*Node{&rootNode},
@@ -199,7 +207,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) View() string {
 	switch m.state {
-	case "collect":
+	case collect:
 		switch len(m.nodeList) {
 		case 1:
 			m.textInput.Placeholder = "First item"
@@ -213,7 +221,7 @@ func (m model) View() string {
 			m.viewNodes(),
 			m.textInput.View(),
 		) + "\n"
-	case "rank":
+	case rank:
 		s := "Which do you prefer?\n\n"
 		if m.selected == m.matchup.A {
 			s += "> "
@@ -229,7 +237,7 @@ func (m model) View() string {
 		}
 		s += m.matchup.B.label
 		return s
-	case "results":
+	case results:
 		s := "Here are the results:\n\n"
 		for i, node := range m.orderedNodes() {
 			s += fmt.Sprintf("%d\t%s\n", i+1, node)
@@ -265,11 +273,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m.state {
-	case "collect":
+	case collect:
 		return m.UpdateCollect(msg)
-	case "rank":
+	case rank:
 		return m.UpdateRank(msg)
-	case "results":
+	case results:
 		return m.UpdateResults(msg)
 	}
 	return m, nil
@@ -291,7 +299,7 @@ func (m model) UpdateRank(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.setMatchup()
 			if m.matchup == nil {
-				m.state = "results"
+				m.state = results
 			}
 		}
 	}
@@ -307,7 +315,7 @@ func (m model) UpdateCollect(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			label := m.textInput.Value()
 			if label == "" {
-				m.state = "rank"
+				m.state = rank
 				m.setMatchup()
 			} else {
 				m.createNode(label)
@@ -330,7 +338,7 @@ func (m *model) softReset() {
 			m.prefer(m.rootNode, node)
 		}
 	}
-	m.state = "rank"
+	m.state = rank
 	m.setMatchup()
 }
 
