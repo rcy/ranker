@@ -231,7 +231,7 @@ func (m model) View() string {
 			s += fmt.Sprintf("%d\t%s\n", i+1, node)
 		}
 
-		s += "\nPress r to retry with the same items\n"
+		s += "\nPress r to redo with the same items\n"
 		s += "Press s to start over with new items\n"
 		s += "Press q to quit\n"
 
