@@ -17,8 +17,6 @@ type Node struct {
 	children []*Node
 }
 
-var stampSeq int
-
 func (n Node) String() string {
 	return fmt.Sprintf("%s", n.label)
 }
@@ -33,9 +31,9 @@ func (m *model) createNode(label string) *Node {
 }
 
 func (m *model) prefer(parent, child *Node) {
-	stampSeq += 1
-	parent.stamp = stampSeq
-	child.stamp = stampSeq
+	m.stampSeq += 1
+	parent.stamp = m.stampSeq
+	child.stamp = m.stampSeq
 
 	parent.children = append(parent.children, child)
 
@@ -173,6 +171,7 @@ type model struct {
 	textInput textinput.Model
 	matchup   *Matchup
 	selected  *Node
+	stampSeq  int
 }
 
 func initialModel() model {
